@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Расписание Самарского университета</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Расписание Самарского университета</h1>
+        <p class="subtitle">
+            Лабораторная работа №2 по веб-разработке
+        </p>
+
+        <div class="card">
+            <p id="status-text">Сервер запущен, страница успешно загружена.</p>
+            <button id="check-btn">Проверить JavaScript</button>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
