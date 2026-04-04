@@ -8,17 +8,154 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
-    <div class="container">
-        <h1>Расписание Самарского университета</h1>
-        <p class="subtitle">
-            Лабораторная работа №2 по веб-разработке
-        </p>
+    <main class="page">
+        <div class="container">
+            <header class="page-header">
+                <h1>Расписание Самарского университета</h1>
+                <p class="subtitle">
+                    Лабораторная работа №2 по веб-разработке
+                </p>
+            </header>
 
-        <div class="card">
-            <p id="status-text">Сервер запущен, страница успешно загружена.</p>
-            <button id="check-btn">Проверить JavaScript</button>
+            <section class="panel">
+                <div class="panel-grid">
+                    <div class="field-group">
+                        <label for="view-mode">Режим просмотра</label>
+                        <select id="view-mode">
+                            <option value="group" selected>По группе</option>
+                            <option value="teacher">По преподавателю</option>
+                        </select>
+                    </div>
+
+                    <div class="field-group" id="institute-group">
+                        <label for="institute-select">Институт</label>
+                        <select id="institute-select">
+                            <option value="">Выберите институт</option>
+                        </select>
+                    </div>
+
+                    <div class="field-group" id="group-field">
+                        <label for="group-select">Группа</label>
+                        <select id="group-select">
+                            <option value="">Сначала выберите институт</option>
+                        </select>
+                    </div>
+
+                    <div class="field-group hidden" id="teacher-field">
+                        <label for="teacher-search">Преподаватель</label>
+                        <input
+                            type="text"
+                            id="teacher-search"
+                            placeholder="Введите ФИО преподавателя"
+                        >
+                    </div>
+
+                    <div class="field-group">
+                        <label for="week-select">Учебная неделя</label>
+                        <select id="week-select">
+                            <option value="1">1 неделя</option>
+                            <option value="2">2 неделя</option>
+                            <option value="3">3 неделя</option>
+                            <option value="4">4 неделя</option>
+                            <option value="5">5 неделя</option>
+                            <option value="6">6 неделя</option>
+                            <option value="7">7 неделя</option>
+                            <option value="8">8 неделя</option>
+                            <option value="9">9 неделя</option>
+                            <option value="10">10 неделя</option>
+                            <option value="11">11 неделя</option>
+                            <option value="12">12 неделя</option>
+                            <option value="13">13 неделя</option>
+                            <option value="14">14 неделя</option>
+                            <option value="15">15 неделя</option>
+                            <option value="16">16 неделя</option>
+                            <option value="17">17 неделя</option>
+                            <option value="18">18 неделя</option>
+                            <option value="19">19 неделя</option>
+                            <option value="20">20 неделя</option>
+                            <option value="21">21 неделя</option>
+                            <option value="22">22 неделя</option>
+                            <option value="23">23 неделя</option>
+                            <option value="24">24 неделя</option>
+                            <option value="25">25 неделя</option>
+                            <option value="26">26 неделя</option>
+                            <option value="27">27 неделя</option>
+                            <option value="28">28 неделя</option>
+                            <option value="29">29 неделя</option>
+                            <option value="30">30 неделя</option>
+                            <option value="31" selected>31 неделя</option>
+                            <option value="32">32 неделя</option>
+                            <option value="33">33 неделя</option>
+                            <option value="34">34 неделя</option>
+                            <option value="35">35 неделя</option>
+                            <option value="36">36 неделя</option>
+                            <option value="37">37 неделя</option>
+                            <option value="38">38 неделя</option>
+                            <option value="39">39 неделя</option>
+                            <option value="40">40 неделя</option>
+                            <option value="41">41 неделя</option>
+                            <option value="42">42 неделя</option>
+                            <option value="43">43 неделя</option>
+                            <option value="44">44 неделя</option>
+                            <option value="45">45 неделя</option>
+                            <option value="46">46 неделя</option>
+                            <option value="47">47 неделя</option>
+                            <option value="48">48 неделя</option>
+                            <option value="49">49 неделя</option>
+                            <option value="50">50 неделя</option>
+                            <option value="51">51 неделя</option>
+                            <option value="52">52 неделя</option>
+                        </select>
+                    </div>
+
+                    <div class="field-group actions">
+                        <label>&nbsp;</label>
+                        <button id="load-schedule-btn">Показать расписание</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="summary-card">
+                <h2>Выбранный объект</h2>
+                <p id="selected-entity-text">Пока ничего не выбрано</p>
+            </section>
+
+            <section class="legend">
+                <span class="legend-item lecture">Лекция</span>
+                <span class="legend-item practice">Практика</span>
+                <span class="legend-item lab">Лабораторная</span>
+                <span class="legend-item exam">Экзамен</span>
+                <span class="legend-item credit">Зачёт</span>
+                <span class="legend-item consultation">Консультация</span>
+                <span class="legend-item other">Другое</span>
+            </section>
+
+            <section class="schedule-wrapper">
+                <div class="schedule-placeholder" id="schedule-placeholder">
+                    Здесь будет отображаться расписание
+                </div>
+
+                <div class="table-scroll hidden" id="schedule-table-container">
+                    <table class="schedule-table">
+                        <thead>
+                            <tr>
+                                <th>Время</th>
+                                <th>Понедельник</th>
+                                <th>Вторник</th>
+                                <th>Среда</th>
+                                <th>Четверг</th>
+                                <th>Пятница</th>
+                                <th>Суббота</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedule-body">
+
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
-    </div>
+    </main>
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
