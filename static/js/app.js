@@ -1,4 +1,5 @@
 $(document).ready(function () {
+    const dayHeaders = $(".day-header");
     const viewModeSelect = $("#view-mode");
     const instituteGroup = $("#institute-group");
     const groupField = $("#group-field");
@@ -29,6 +30,8 @@ $(document).ready(function () {
 
     function handleViewModeChange() {
         const mode = viewModeSelect.val();
+
+        clearSchedule();
 
         if (mode === "group") {
             instituteGroup.removeClass("hidden");
@@ -75,6 +78,7 @@ $(document).ready(function () {
         const instituteId = instituteSelect.val();
 
         resetGroupSelect("Сначала выберите институт");
+        clearSchedule();
 
         if (!instituteId) {
             return;
@@ -128,71 +132,98 @@ $(document).ready(function () {
                 return;
             }
 
-            selectedEntityText.text(`Группа: ${groupName}. Учебная неделя: ${week}`);
-        } else {
-            const teacherName = teacherSearch.val().trim();
-
-            if (!teacherName) {
-                alert("Введите ФИО преподавателя");
-                return;
-            }
-
-            selectedEntityText.text(`Преподаватель: ${teacherName}. Учебная неделя: ${week}`);
+            loadGroupSchedule(groupId, groupName, week);
+            return;
         }
 
-        renderMockSchedule();
+        const teacherName = teacherSearch.val().trim();
+
+        if (!teacherName) {
+            alert("Введите ФИО преподавателя");
+            return;
+        }
+
+        selectedEntityText.text(`Преподаватель: ${teacherName}. Учебная неделя: ${week}`);
+        showPlaceholder("Режим расписания преподавателя подключим следующим шагом");
     }
 
-    function renderMockSchedule() {
-        schedulePlaceholder.addClass("hidden");
-        scheduleTableContainer.removeClass("hidden");
+    function loadGroupSchedule(groupId, groupName, week) {
+        selectedEntityText.text(`Загрузка расписания группы ${groupName}...`);
+        showPlaceholder("Загрузка расписания...");
 
-        const mockRows = [
-            {
-                time: "08:00–09:35",
-                monday: "Веб-разработка",
-                tuesday: "—",
-                wednesday: "Безопасность веб-приложений",
-                thursday: "—",
-                friday: "Базы данных",
-                saturday: "—"
-            },
-            {
-                time: "09:45–11:20",
-                monday: "—",
-                tuesday: "Форензика",
-                wednesday: "—",
-                thursday: "Компьютерные сети",
-                friday: "—",
-                saturday: "Практика по веб-разработке"
-            },
-            {
-                time: "11:30–13:05",
-                monday: "БСБД",
-                tuesday: "—",
-                wednesday: "—",
-                thursday: "—",
-                friday: "—",
-                saturday: "—"
-            }
-        ];
+        $.getJSON(`/api/schedule/group/${groupId}`, { week: week })
+            .done(function (response) {
+                renderGroupSchedule(response, groupName, week);
+            })
+            .fail(function (xhr) {
+                console.error("Ошибка загрузки расписания:", xhr);
 
+                let errorText = "Не удалось загрузить расписание";
+                if (xhr.responseJSON) {
+                    if (xhr.responseJSON.details) {
+                        errorText += ": " + xhr.responseJSON.details;
+                    } else if (xhr.responseJSON.error) {
+                        errorText = xhr.responseJSON.error;
+                    }
+                }
+
+                selectedEntityText.text(`Группа: ${groupName}. Учебная неделя: ${week}`);
+                showPlaceholder(errorText);
+            });
+    }
+
+    function renderGroupSchedule(response, groupName, week) {
+        const selectedWeek = response.selected_week || week;
+
+        selectedEntityText.text(`Группа: ${groupName}. Учебная неделя: ${selectedWeek}`);
+
+        if (!response.rows || !response.rows.length) {
+            showPlaceholder(response.message || "Для выбранной недели занятий нет");
+            return;
+        }
+
+        if (response.headers && response.headers.length === 6) {
+            dayHeaders.each(function (index) {
+                $(this).text(response.headers[index]);
+            });
+        }
         scheduleBody.empty();
 
-        mockRows.forEach(function (row) {
-            const tr = `
-                <tr>
-                    <td>${row.time}</td>
-                    <td>${row.monday}</td>
-                    <td>${row.tuesday}</td>
-                    <td>${row.wednesday}</td>
-                    <td>${row.thursday}</td>
-                    <td>${row.friday}</td>
-                    <td>${row.saturday}</td>
-                </tr>
-            `;
+        response.rows.forEach(function (row) {
+            let trHtml = `<tr><td class="time-cell">${escapeHtml(row.time)}</td>`;
 
-            scheduleBody.append(tr);
+            row.days.forEach(function (cellHtml) {
+                trHtml += `<td class="schedule-cell">${cellHtml || "—"}</td>`;
+            });
+
+            trHtml += "</tr>";
+            scheduleBody.append(trHtml);
         });
+
+        schedulePlaceholder.addClass("hidden");
+        scheduleTableContainer.removeClass("hidden");
+    }
+
+    function clearSchedule() {
+        scheduleBody.empty();
+        scheduleTableContainer.addClass("hidden");
+        schedulePlaceholder.removeClass("hidden");
+        schedulePlaceholder.text("Здесь будет отображаться расписание");
+    }
+
+    function showPlaceholder(text) {
+        scheduleBody.empty();
+        scheduleTableContainer.addClass("hidden");
+        schedulePlaceholder.removeClass("hidden");
+        schedulePlaceholder.text(text);
+    }
+
+    function escapeHtml(value) {
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
     }
 });

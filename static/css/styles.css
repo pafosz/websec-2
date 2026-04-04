@@ -238,3 +238,28 @@ h1 {
         padding: 18px;
     }
 }
+
+.schedule-cell {
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.schedule-cell a {
+    color: #1d4ed8;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.schedule-cell a:hover {
+    text-decoration: underline;
+}
+
+.schedule-cell div,
+.schedule-cell p {
+    margin: 0 0 4px;
+}
+
+.time-cell {
+    white-space: nowrap;
+    font-weight: 700;
+}

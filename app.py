@@ -1,6 +1,10 @@
 from flask import Flask, jsonify, render_template, request
 
-from services.ssau_parser import get_groups_by_institute, get_institutes
+from services.ssau_parser import (
+    get_group_schedule,
+    get_groups_by_institute,
+    get_institutes,
+)
 
 app = Flask(__name__)
 
@@ -42,6 +46,30 @@ def api_groups():
             jsonify(
                 {
                     "error": "Не удалось загрузить список групп",
+                    "details": str(error),
+                }
+            ),
+            500,
+        )
+
+
+@app.route("/api/schedule/group/<group_id>")
+def api_group_schedule(group_id):
+    week_raw = request.args.get("week", "").strip()
+
+    if week_raw and not week_raw.isdigit():
+        return jsonify({"error": "Параметр week должен быть числом"}), 400
+
+    week = int(week_raw) if week_raw else None
+
+    try:
+        schedule = get_group_schedule(group_id, week)
+        return jsonify(schedule)
+    except Exception as error:
+        return (
+            jsonify(
+                {
+                    "error": "Не удалось загрузить расписание группы",
                     "details": str(error),
                 }
             ),

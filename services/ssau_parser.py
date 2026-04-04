@@ -1,5 +1,6 @@
+import re
 from functools import lru_cache
-from urllib.parse import urlparse, urljoin, parse_qs
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -7,24 +8,37 @@ from bs4 import BeautifulSoup
 BASE_URL = "https://ssau.ru"
 SCHEDULE_URL = f"{BASE_URL}/rasp"
 
-HEADERS = {"User-Agent": (
-               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-               "AppleWebKit/537.36 (KHTML, like Gecko) "
-               "Chrome/135.0.0.0 Safari/537.36"
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/135.0.0.0 Safari/537.36"
     ),
     "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
 }
 
+WEEKDAY_HEADERS = [
+    "Понедельник",
+    "Вторник",
+    "Среда",
+    "Четверг",
+    "Пятница",
+    "Суббота",
+]
+
 session = requests.Session()
 session.headers.update(HEADERS)
+
 
 def fetch_soup(url: str) -> BeautifulSoup:
     response = session.get(url, timeout=20)
     response.raise_for_status()
     return BeautifulSoup(response.text, "lxml")
 
+
 def make_absolute_url(href: str) -> str:
     return urljoin(BASE_URL, href)
+
 
 @lru_cache(maxsize=1)
 def get_institutes() -> list[dict]:
@@ -113,3 +127,255 @@ def get_groups_by_institute(faculty_id: str) -> list[dict]:
 
     groups.sort(key=lambda item: item["name"].lower())
     return groups
+
+
+def build_group_schedule_url(group_id: str, week: int | None = None) -> str:
+    params = {"groupId": group_id}
+
+    if week is not None:
+        params["selectedWeek"] = week
+        params["selectedWeekday"] = 1
+
+    return f"{SCHEDULE_URL}?{urlencode(params)}"
+
+
+def find_schedule_table(soup: BeautifulSoup):
+    for table in soup.find_all("table"):
+        table_text = table.get_text(" ", strip=True).lower()
+
+        if (
+            "время" in table_text
+            and "понедельник" in table_text
+            and "суббота" in table_text
+        ):
+            return table
+
+    return None
+
+
+def format_time_cell(cell) -> str:
+    parts = [part.strip() for part in cell.stripped_strings if part.strip()]
+
+    if (
+        len(parts) >= 2
+        and re.fullmatch(r"\d{2}:\d{2}", parts[0])
+        and re.fullmatch(r"\d{2}:\d{2}", parts[1])
+    ):
+        return f"{parts[0]}–{parts[1]}"
+
+    return " ".join(parts) if parts else "—"
+
+
+def clean_schedule_cell(cell) -> str:
+    for tag in cell.find_all(["script", "style", "img", "svg", "button"]):
+        tag.decompose()
+
+    for link in cell.find_all("a", href=True):
+        href = link.get("href", "").strip()
+        absolute_url = make_absolute_url(href)
+        parsed = urlparse(absolute_url)
+        query = parse_qs(parsed.query)
+
+        if "groupId" in query:
+            link.decompose()
+            continue
+
+        staff_id = query.get("staffId", [None])[0]
+        if staff_id:
+            current_classes = link.get("class", [])
+            if isinstance(current_classes, str):
+                current_classes = [current_classes]
+
+            link["href"] = "#"
+            link["class"] = current_classes + ["teacher-link"]
+            link["data-staff-id"] = staff_id
+            link["data-teacher-name"] = link.get_text(" ", strip=True)
+            continue
+
+        link["href"] = absolute_url
+        link["target"] = "_blank"
+        link["rel"] = "noopener noreferrer"
+
+    html = cell.decode_contents().strip()
+
+    if not html:
+        return "—"
+
+    return html
+
+
+def clean_schedule_block(block) -> str:
+    for tag in block.find_all(["script", "style", "img", "svg", "button"]):
+        tag.decompose()
+
+    for link in block.find_all("a", href=True):
+        href = link.get("href", "").strip()
+        absolute_url = make_absolute_url(href)
+        parsed = urlparse(absolute_url)
+        query = parse_qs(parsed.query)
+
+        # ссылки на группы внутри ячейки удаляем
+        if "groupId" in query:
+            link.decompose()
+            continue
+
+        # ссылки на преподавателей оставляем для будущего перехода
+        staff_id = query.get("staffId", [None])[0]
+        if staff_id:
+            current_classes = link.get("class", [])
+            if isinstance(current_classes, str):
+                current_classes = [current_classes]
+
+            link["href"] = "#"
+            link["class"] = current_classes + ["teacher-link"]
+            link["data-staff-id"] = staff_id
+            link["data-teacher-name"] = link.get_text(" ", strip=True)
+            continue
+
+        link["href"] = absolute_url
+        link["target"] = "_blank"
+        link["rel"] = "noopener noreferrer"
+
+    html = block.decode_contents().strip()
+
+    if not html or not block.get_text(" ", strip=True):
+        return "—"
+
+    return html
+
+
+def format_time_block(time_block) -> str:
+    items = time_block.select(".schedule__time-item")
+    parts = []
+
+    for item in items:
+        text = item.get_text(" ", strip=True)
+        if text:
+            text = re.sub(r"\s+", " ", text)
+            parts.append(text)
+
+    if len(parts) >= 2:
+        start_match = re.search(r"\d{2}:\d{2}", parts[0])
+        end_match = re.search(r"\d{2}:\d{2}", parts[1])
+
+        if start_match and end_match:
+            return f"{start_match.group()}–{end_match.group()}"
+
+    return " ".join(parts) if parts else "—"
+
+
+def parse_schedule_div_layout(soup: BeautifulSoup) -> dict | None:
+    schedule_items = soup.select_one("div.schedule div.schedule__items")
+
+    if schedule_items is None:
+        return None
+
+    children = [
+        child for child in schedule_items.find_all("div", recursive=False)
+        if child.get("class")
+    ]
+
+    if len(children) < 7:
+        return None
+
+    header_candidates = children[:7]
+
+    first_header_text = header_candidates[0].get_text(" ", strip=True).lower()
+    if "время" not in first_header_text:
+        return None
+
+    headers = []
+    for head in header_candidates[1:7]:
+        weekday = head.select_one(".schedule__head-weekday")
+        if weekday:
+            headers.append(weekday.get_text(" ", strip=True).capitalize())
+        else:
+            headers.append(head.get_text(" ", strip=True).capitalize())
+
+    rows = []
+    index = 7
+
+    while index < len(children):
+        current = children[index]
+        classes = current.get("class", [])
+
+        if "schedule__time" not in classes:
+            index += 1
+            continue
+
+        time_value = format_time_block(current)
+        day_blocks = children[index + 1:index + 7]
+
+        if len(day_blocks) < 6:
+            break
+
+        days = []
+        for block in day_blocks:
+            days.append(clean_schedule_block(block))
+
+        rows.append(
+            {
+                "time": time_value,
+                "days": days,
+            }
+        )
+
+        index += 7
+
+    return {
+        "headers": headers if len(headers) == 6 else WEEKDAY_HEADERS,
+        "rows": rows,
+    }
+
+
+def extract_group_name(soup: BeautifulSoup, fallback: str) -> str:
+    page_title = soup.title.get_text(" ", strip=True) if soup.title else ""
+
+    match = re.search(r"Расписание,\s*(.+?)(?:\s*-\s*Самарский университет)?$", page_title)
+    if match:
+        return match.group(1).strip()
+
+    for heading in soup.find_all(["h1", "h2"]):
+        text = heading.get_text(" ", strip=True)
+        if text and "Расписание" not in text:
+            return text
+
+    return fallback
+
+
+def get_group_schedule(group_id: str, week: int | None = None) -> dict:
+    url = build_group_schedule_url(group_id, week)
+    soup = fetch_soup(url)
+
+    page_text = soup.get_text(" ", strip=True)
+
+    if "Расписание пока не введено!" in page_text:
+        return {
+            "group_id": group_id,
+            "group_name": extract_group_name(soup, group_id),
+            "selected_week": week,
+            "headers": WEEKDAY_HEADERS,
+            "rows": [],
+            "message": "Расписание пока не введено",
+        }
+
+    parsed_schedule = parse_schedule_div_layout(soup)
+
+    if parsed_schedule is None:
+        return {
+            "group_id": group_id,
+            "group_name": extract_group_name(soup, group_id),
+            "selected_week": week,
+            "headers": WEEKDAY_HEADERS,
+            "rows": [],
+            "message": "Не удалось разобрать структуру расписания",
+        }
+
+    return {
+        "group_id": group_id,
+        "group_name": extract_group_name(soup, group_id),
+        "selected_week": week,
+        "headers": parsed_schedule["headers"],
+        "rows": parsed_schedule["rows"],
+        "message": "",
+    }
