@@ -3,17 +3,32 @@ $(document).ready(function () {
     const instituteGroup = $("#institute-group");
     const groupField = $("#group-field");
     const teacherField = $("#teacher-field");
+
+    const instituteSelect = $("#institute-select");
     const groupSelect = $("#group-select");
     const teacherSearch = $("#teacher-search");
     const weekSelect = $("#week-select");
+
     const selectedEntityText = $("#selected-entity-text");
     const loadScheduleBtn = $("#load-schedule-btn");
+
     const schedulePlaceholder = $("#schedule-placeholder");
     const scheduleTableContainer = $("#schedule-table-container");
     const scheduleBody = $("#schedule-body");
 
-    viewModeSelect.on("change", function () {
-        const mode = $(this).val();
+    init();
+
+    viewModeSelect.on("change", handleViewModeChange);
+    instituteSelect.on("change", handleInstituteChange);
+    loadScheduleBtn.on("click", handleLoadSchedule);
+
+    function init() {
+        selectedEntityText.text("Пока ничего не выбрано");
+        loadInstitutes();
+    }
+
+    function handleViewModeChange() {
+        const mode = viewModeSelect.val();
 
         if (mode === "group") {
             instituteGroup.removeClass("hidden");
@@ -26,14 +41,92 @@ $(document).ready(function () {
             teacherField.removeClass("hidden");
             selectedEntityText.text("Режим просмотра: по преподавателю");
         }
-    });
+    }
 
-    loadScheduleBtn.on("click", function () {
+    function loadInstitutes() {
+        instituteSelect.html('<option value="">Загрузка институтов...</option>');
+
+        $.getJSON("/api/institutes")
+            .done(function (response) {
+                fillInstitutes(response.items || []);
+            })
+            .fail(function (xhr) {
+                console.error("Ошибка загрузки институтов:", xhr);
+                instituteSelect.html('<option value="">Не удалось загрузить институты</option>');
+            });
+    }
+
+    function fillInstitutes(items) {
+        if (!items.length) {
+            instituteSelect.html('<option value="">Институты не найдены</option>');
+            return;
+        }
+
+        let options = '<option value="">Выберите институт</option>';
+
+        items.forEach(function (item) {
+            options += `<option value="${item.id}">${item.name}</option>`;
+        });
+
+        instituteSelect.html(options);
+    }
+
+    function handleInstituteChange() {
+        const instituteId = instituteSelect.val();
+
+        resetGroupSelect("Сначала выберите институт");
+
+        if (!instituteId) {
+            return;
+        }
+
+        loadGroups(instituteId);
+    }
+
+    function loadGroups(instituteId) {
+        groupSelect.html('<option value="">Загрузка групп...</option>');
+
+        $.getJSON("/api/groups", { institute_id: instituteId })
+            .done(function (response) {
+                fillGroups(response.items || []);
+            })
+            .fail(function (xhr) {
+                console.error("Ошибка загрузки групп:", xhr);
+                groupSelect.html('<option value="">Не удалось загрузить группы</option>');
+            });
+    }
+
+    function fillGroups(items) {
+        if (!items.length) {
+            groupSelect.html('<option value="">Группы не найдены</option>');
+            return;
+        }
+
+        let options = '<option value="">Выберите группу</option>';
+
+        items.forEach(function (item) {
+            options += `<option value="${item.id}">${item.name}</option>`;
+        });
+
+        groupSelect.html(options);
+    }
+
+    function resetGroupSelect(text) {
+        groupSelect.html(`<option value="">${text}</option>`);
+    }
+
+    function handleLoadSchedule() {
         const mode = viewModeSelect.val();
         const week = weekSelect.val();
 
         if (mode === "group") {
+            const groupId = groupSelect.val();
             const groupName = groupSelect.find("option:selected").text();
+
+            if (!groupId) {
+                alert("Сначала выберите группу");
+                return;
+            }
 
             selectedEntityText.text(`Группа: ${groupName}. Учебная неделя: ${week}`);
         } else {
@@ -48,7 +141,7 @@ $(document).ready(function () {
         }
 
         renderMockSchedule();
-    });
+    }
 
     function renderMockSchedule() {
         schedulePlaceholder.addClass("hidden");
@@ -98,6 +191,7 @@ $(document).ready(function () {
                     <td>${row.saturday}</td>
                 </tr>
             `;
+
             scheduleBody.append(tr);
         });
     }
