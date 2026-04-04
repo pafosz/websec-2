@@ -139,6 +139,16 @@ def build_group_schedule_url(group_id: str, week: int | None = None) -> str:
     return f"{SCHEDULE_URL}?{urlencode(params)}"
 
 
+def build_teacher_schedule_url(staff_id: str, week: int | None = None) -> str:
+    params = {"staffId": staff_id}
+
+    if week is not None:
+        params["selectedWeek"] = week
+        params["selectedWeekday"] = 1
+
+    return f"{SCHEDULE_URL}?{urlencode(params)}"
+
+
 def find_schedule_table(soup: BeautifulSoup):
     for table in soup.find_all("table"):
         table_text = table.get_text(" ", strip=True).lower()
@@ -204,7 +214,7 @@ def clean_schedule_cell(cell) -> str:
     return html
 
 
-def clean_schedule_block(block) -> str:
+def clean_schedule_block(block, show_group_links: bool = False) -> str:
     for tag in block.find_all(["script", "style", "img", "svg", "button"]):
         tag.decompose()
 
@@ -214,12 +224,22 @@ def clean_schedule_block(block) -> str:
         parsed = urlparse(absolute_url)
         query = parse_qs(parsed.query)
 
-        # ссылки на группы внутри ячейки удаляем
-        if "groupId" in query:
-            link.decompose()
+        group_id = query.get("groupId", [None])[0]
+        if group_id:
+            if not show_group_links:
+                link.decompose()
+                continue
+
+            current_classes = link.get("class", [])
+            if isinstance(current_classes, str):
+                current_classes = [current_classes]
+
+            link["href"] = "#"
+            link["class"] = current_classes + ["group-link"]
+            link["data-group-id"] = group_id
+            link["data-group-name"] = link.get_text(" ", strip=True)
             continue
 
-        # ссылки на преподавателей оставляем для будущего перехода
         staff_id = query.get("staffId", [None])[0]
         if staff_id:
             current_classes = link.get("class", [])
@@ -243,7 +263,6 @@ def clean_schedule_block(block) -> str:
 
     return html
 
-
 def format_time_block(time_block) -> str:
     items = time_block.select(".schedule__time-item")
     parts = []
@@ -264,7 +283,7 @@ def format_time_block(time_block) -> str:
     return " ".join(parts) if parts else "—"
 
 
-def parse_schedule_div_layout(soup: BeautifulSoup) -> dict | None:
+def parse_schedule_div_layout(soup: BeautifulSoup, show_group_links: bool = False) -> dict | None:
     schedule_items = soup.select_one("div.schedule div.schedule__items")
 
     if schedule_items is None:
@@ -311,7 +330,7 @@ def parse_schedule_div_layout(soup: BeautifulSoup) -> dict | None:
 
         days = []
         for block in day_blocks:
-            days.append(clean_schedule_block(block))
+            days.append(clean_schedule_block(block, show_group_links=show_group_links))
 
         rows.append(
             {
@@ -374,6 +393,44 @@ def get_group_schedule(group_id: str, week: int | None = None) -> dict:
     return {
         "group_id": group_id,
         "group_name": extract_group_name(soup, group_id),
+        "selected_week": week,
+        "headers": parsed_schedule["headers"],
+        "rows": parsed_schedule["rows"],
+        "message": "",
+    }
+
+
+def get_teacher_schedule(staff_id: str, week: int | None = None) -> dict:
+    url = build_teacher_schedule_url(staff_id, week)
+    soup = fetch_soup(url)
+
+    page_text = soup.get_text(" ", strip=True)
+
+    if "Расписание пока не введено!" in page_text:
+        return {
+            "staff_id": staff_id,
+            "teacher_name": extract_group_name(soup, staff_id),
+            "selected_week": week,
+            "headers": WEEKDAY_HEADERS,
+            "rows": [],
+            "message": "Расписание пока не введено",
+        }
+
+    parsed_schedule = parse_schedule_div_layout(soup, show_group_links=True)
+
+    if parsed_schedule is None:
+        return {
+            "staff_id": staff_id,
+            "teacher_name": extract_group_name(soup, staff_id),
+            "selected_week": week,
+            "headers": WEEKDAY_HEADERS,
+            "rows": [],
+            "message": "Не удалось разобрать структуру расписания преподавателя",
+        }
+
+    return {
+        "staff_id": staff_id,
+        "teacher_name": extract_group_name(soup, staff_id),
         "selected_week": week,
         "headers": parsed_schedule["headers"],
         "rows": parsed_schedule["rows"],

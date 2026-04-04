@@ -137,16 +137,20 @@ $(document).ready(function () {
         }
 
         const teacherName = teacherSearch.val().trim();
+        const staffId = teacherSearch.data("staffId");
 
         if (!teacherName) {
-            alert("Введите ФИО преподавателя");
+            alert("Сначала выберите преподавателя");
             return;
         }
 
-        selectedEntityText.text(`Преподаватель: ${teacherName}. Учебная неделя: ${week}`);
-        showPlaceholder("Режим расписания преподавателя подключим следующим шагом");
-    }
+        if (!staffId) {
+            alert("Откройте расписание преподавателя кликом по его имени в расписании группы");
+            return;
+        }
 
+        loadTeacherSchedule(staffId, teacherName, week);
+    }
     function loadGroupSchedule(groupId, groupName, week) {
         selectedEntityText.text(`Загрузка расписания группы ${groupName}...`);
         showPlaceholder("Загрузка расписания...");
@@ -172,6 +176,29 @@ $(document).ready(function () {
             });
     }
 
+    function loadTeacherSchedule(staffId, teacherName, week) {
+        selectedEntityText.text(`Загрузка расписания преподавателя ${teacherName}...`);
+        showPlaceholder("Загрузка расписания преподавателя...");
+
+        $.getJSON(`/api/schedule/teacher/${staffId}`, { week: week })
+            .done(function (response) {
+                renderTeacherSchedule(response, teacherName, week);
+            })
+            .fail(function (xhr) {
+                console.error("Ошибка загрузки расписания преподавателя:", xhr);
+
+                let errorText = "Не удалось загрузить расписание преподавателя";
+                if (xhr.responseJSON && xhr.responseJSON.details) {
+                    errorText += `: ${xhr.responseJSON.details}`;
+                } else if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorText = xhr.responseJSON.error;
+                }
+
+                selectedEntityText.text(`Преподаватель: ${teacherName}. Учебная неделя: ${week}`);
+                showPlaceholder(errorText);
+            });
+    }
+
     function renderGroupSchedule(response, groupName, week) {
         const selectedWeek = response.selected_week || week;
 
@@ -187,6 +214,43 @@ $(document).ready(function () {
                 $(this).text(response.headers[index]);
             });
         }
+        scheduleBody.empty();
+
+        response.rows.forEach(function (row) {
+            let trHtml = `<tr><td class="time-cell">${escapeHtml(row.time)}</td>`;
+
+            row.days.forEach(function (cellHtml) {
+                trHtml += `<td class="schedule-cell">${cellHtml || "—"}</td>`;
+            });
+
+            trHtml += "</tr>";
+            scheduleBody.append(trHtml);
+        });
+
+        schedulePlaceholder.addClass("hidden");
+        scheduleTableContainer.removeClass("hidden");
+    }
+
+    function renderTeacherSchedule(response, teacherName, week) {
+        const selectedWeek = response.selected_week || week;
+
+        selectedEntityText.text(`Преподаватель: ${teacherName}. Учебная неделя: ${selectedWeek}`);
+
+        if (!response.rows || !response.rows.length) {
+            showPlaceholder(response.message || "Для выбранной недели занятий нет");
+            return;
+        }
+
+        renderScheduleTable(response);
+    }
+
+    function renderScheduleTable(response) {
+        if (response.headers && response.headers.length === 6) {
+            dayHeaders.each(function (index) {
+                $(this).text(response.headers[index]);
+            });
+        }
+
         scheduleBody.empty();
 
         response.rows.forEach(function (row) {
@@ -226,4 +290,22 @@ $(document).ready(function () {
             .replaceAll('"', "&quot;")
             .replaceAll("'", "&#039;");
     }
+
+    $(document).on("click", ".teacher-link", function (event) {
+        event.preventDefault();
+
+        const staffId = $(this).data("staffId");
+        const teacherName = $(this).data("teacherName");
+        const week = weekSelect.val();
+
+        viewModeSelect.val("teacher");
+        handleViewModeChange();
+
+        teacherSearch.val(teacherName);
+        teacherSearch.data("staffId", staffId);
+
+        loadTeacherSchedule(staffId, teacherName, week);
+    });
+
+
 });
