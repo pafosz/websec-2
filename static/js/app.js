@@ -22,9 +22,13 @@ $(document).ready(function () {
     viewModeSelect.on("change", handleViewModeChange);
     instituteSelect.on("change", handleInstituteChange);
     loadScheduleBtn.on("click", handleLoadSchedule);
+    teacherSearch.on("input", function () {
+        $(this).removeData("staffId");
+    });
 
     function init() {
         selectedEntityText.text("Пока ничего не выбрано");
+        loadCurrentWeek();
         loadInstitutes();
     }
 
@@ -44,6 +48,18 @@ $(document).ready(function () {
             teacherField.removeClass("hidden");
             selectedEntityText.text("Режим просмотра: по преподавателю");
         }
+    }
+
+    function loadCurrentWeek() {
+        $.getJSON("/api/current-week")
+            .done(function (response) {
+                if (response.week) {
+                    weekSelect.val(String(response.week));
+                }
+            })
+            .fail(function (xhr) {
+                console.error("Ошибка определения текущей недели:", xhr);
+            });
     }
 
     function loadInstitutes() {

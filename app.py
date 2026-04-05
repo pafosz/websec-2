@@ -1,3 +1,4 @@
+from utils.week import get_current_study_week
 from flask import Flask, jsonify, render_template, request
 
 from services.ssau_parser import (
@@ -95,6 +96,23 @@ def api_teacher_schedule(staff_id):
             jsonify(
                 {
                     "error": "Не удалось загрузить расписание преподавателя",
+                    "details": str(error),
+                }
+            ),
+            500,
+        )
+
+
+@app.route("/api/current-week")
+def api_current_week():
+    try:
+        week = get_current_study_week()
+        return jsonify({"week": week})
+    except Exception as error:
+        return (
+            jsonify(
+                {
+                    "error": "Не удалось определить текущую учебную неделю",
                     "details": str(error),
                 }
             ),

@@ -149,71 +149,6 @@ def build_teacher_schedule_url(staff_id: str, week: int | None = None) -> str:
     return f"{SCHEDULE_URL}?{urlencode(params)}"
 
 
-def find_schedule_table(soup: BeautifulSoup):
-    for table in soup.find_all("table"):
-        table_text = table.get_text(" ", strip=True).lower()
-
-        if (
-            "время" in table_text
-            and "понедельник" in table_text
-            and "суббота" in table_text
-        ):
-            return table
-
-    return None
-
-
-def format_time_cell(cell) -> str:
-    parts = [part.strip() for part in cell.stripped_strings if part.strip()]
-
-    if (
-        len(parts) >= 2
-        and re.fullmatch(r"\d{2}:\d{2}", parts[0])
-        and re.fullmatch(r"\d{2}:\d{2}", parts[1])
-    ):
-        return f"{parts[0]}–{parts[1]}"
-
-    return " ".join(parts) if parts else "—"
-
-
-def clean_schedule_cell(cell) -> str:
-    for tag in cell.find_all(["script", "style", "img", "svg", "button"]):
-        tag.decompose()
-
-    for link in cell.find_all("a", href=True):
-        href = link.get("href", "").strip()
-        absolute_url = make_absolute_url(href)
-        parsed = urlparse(absolute_url)
-        query = parse_qs(parsed.query)
-
-        if "groupId" in query:
-            link.decompose()
-            continue
-
-        staff_id = query.get("staffId", [None])[0]
-        if staff_id:
-            current_classes = link.get("class", [])
-            if isinstance(current_classes, str):
-                current_classes = [current_classes]
-
-            link["href"] = "#"
-            link["class"] = current_classes + ["teacher-link"]
-            link["data-staff-id"] = staff_id
-            link["data-teacher-name"] = link.get_text(" ", strip=True)
-            continue
-
-        link["href"] = absolute_url
-        link["target"] = "_blank"
-        link["rel"] = "noopener noreferrer"
-
-    html = cell.decode_contents().strip()
-
-    if not html:
-        return "—"
-
-    return html
-
-
 def clean_schedule_block(block, show_group_links: bool = False) -> str:
     for tag in block.find_all(["script", "style", "img", "svg", "button"]):
         tag.decompose()
@@ -347,7 +282,7 @@ def parse_schedule_div_layout(soup: BeautifulSoup, show_group_links: bool = Fals
     }
 
 
-def extract_group_name(soup: BeautifulSoup, fallback: str) -> str:
+def extract_schedule_subject_name(soup: BeautifulSoup, fallback: str) -> str:
     page_title = soup.title.get_text(" ", strip=True) if soup.title else ""
 
     match = re.search(r"Расписание,\s*(.+?)(?:\s*-\s*Самарский университет)?$", page_title)
@@ -371,7 +306,7 @@ def get_group_schedule(group_id: str, week: int | None = None) -> dict:
     if "Расписание пока не введено!" in page_text:
         return {
             "group_id": group_id,
-            "group_name": extract_group_name(soup, group_id),
+            "group_name": extract_schedule_subject_name(soup, group_id),
             "selected_week": week,
             "headers": WEEKDAY_HEADERS,
             "rows": [],
@@ -383,7 +318,7 @@ def get_group_schedule(group_id: str, week: int | None = None) -> dict:
     if parsed_schedule is None:
         return {
             "group_id": group_id,
-            "group_name": extract_group_name(soup, group_id),
+            "group_name": extract_schedule_subject_name(soup, group_id),
             "selected_week": week,
             "headers": WEEKDAY_HEADERS,
             "rows": [],
@@ -392,7 +327,7 @@ def get_group_schedule(group_id: str, week: int | None = None) -> dict:
 
     return {
         "group_id": group_id,
-        "group_name": extract_group_name(soup, group_id),
+        "group_name": extract_schedule_subject_name(soup, group_id),
         "selected_week": week,
         "headers": parsed_schedule["headers"],
         "rows": parsed_schedule["rows"],
@@ -409,7 +344,7 @@ def get_teacher_schedule(staff_id: str, week: int | None = None) -> dict:
     if "Расписание пока не введено!" in page_text:
         return {
             "staff_id": staff_id,
-            "teacher_name": extract_group_name(soup, staff_id),
+            "teacher_name": extract_schedule_subject_name(soup, staff_id),
             "selected_week": week,
             "headers": WEEKDAY_HEADERS,
             "rows": [],
@@ -421,7 +356,7 @@ def get_teacher_schedule(staff_id: str, week: int | None = None) -> dict:
     if parsed_schedule is None:
         return {
             "staff_id": staff_id,
-            "teacher_name": extract_group_name(soup, staff_id),
+            "teacher_name": extract_schedule_subject_name(soup, staff_id),
             "selected_week": week,
             "headers": WEEKDAY_HEADERS,
             "rows": [],
@@ -430,7 +365,7 @@ def get_teacher_schedule(staff_id: str, week: int | None = None) -> dict:
 
     return {
         "staff_id": staff_id,
-        "teacher_name": extract_group_name(soup, staff_id),
+        "teacher_name": extract_schedule_subject_name(soup, staff_id),
         "selected_week": week,
         "headers": parsed_schedule["headers"],
         "rows": parsed_schedule["rows"],
