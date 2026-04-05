@@ -323,5 +323,18 @@ $(document).ready(function () {
         loadTeacherSchedule(staffId, teacherName, week);
     });
 
+    $(document).on("click", ".group-link", function (event) {
+        event.preventDefault();
 
+        const groupId = $(this).data("groupId");
+        const groupName = $(this).data("groupName");
+        const week = weekSelect.val();
+
+        viewModeSelect.val("group");
+        handleViewModeChange();
+
+        groupSelect.html(`<option value="${groupId}" selected>${groupName}</option>`);
+
+        loadGroupSchedule(groupId, groupName, week);
+    });
 });
