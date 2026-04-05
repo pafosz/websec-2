@@ -263,3 +263,122 @@ h1 {
     white-space: nowrap;
     font-weight: 700;
 }
+
+.actions button:disabled,
+#load-schedule-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.schedule-placeholder.placeholder-loading {
+    border-color: #93c5fd;
+    color: #1d4ed8;
+    background-color: #eff6ff;
+}
+
+.schedule-placeholder.placeholder-error {
+    border-color: #fca5a5;
+    color: #b91c1c;
+    background-color: #fef2f2;
+}
+
+.schedule-placeholder.placeholder-empty {
+    border-color: #cbd5e1;
+    color: #475569;
+    background-color: #f8fafc;
+}
+
+.schedule-cell {
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.schedule-cell .schedule__lesson {
+    margin-bottom: 10px;
+}
+
+.schedule-cell .schedule__lesson:last-child {
+    margin-bottom: 0;
+}
+
+.schedule-cell .schedule__lesson-type {
+    margin-bottom: 6px;
+}
+
+.schedule-cell .schedule__lesson-type-chip {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.schedule-cell .schedule__discipline {
+    margin-bottom: 4px;
+    font-weight: 700;
+}
+
+.schedule-cell .schedule__place,
+.schedule-cell .schedule__teacher,
+.schedule-cell .schedule__groups,
+.schedule-cell .schedule__comment {
+    margin-bottom: 4px;
+}
+
+.schedule-cell .caption-text,
+.schedule-cell .body-text {
+    font-size: inherit;
+    line-height: inherit;
+}
+
+.teacher-link,
+.group-link {
+    color: #1d4ed8;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.teacher-link:hover,
+.group-link:hover {
+    text-decoration: underline;
+}
+
+.schedule-cell .lesson-type-1__bg {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.schedule-cell .lesson-type-2__bg {
+    background-color: #f5d0fe;
+    color: #a21caf;
+}
+
+.schedule-cell .lesson-type-3__bg {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+}
+
+.schedule-cell .lesson-type-4__bg {
+    background-color: #fed7aa;
+    color: #9a3412;
+}
+
+.schedule-cell .lesson-type-5__bg {
+    background-color: #c7d2fe;
+    color: #3730a3;
+}
+
+.schedule-cell .lesson-type-6__bg {
+    background-color: #ccfbf1;
+    color: #0f766e;
+}
+
+.schedule-cell .lesson-type-8__bg {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.summary-card p {
+    word-break: break-word;
+}

@@ -12,6 +12,7 @@ $(document).ready(function () {
 
     const selectedEntityText = $("#selected-entity-text");
     const loadScheduleBtn = $("#load-schedule-btn");
+    const defaultLoadButtonText = loadScheduleBtn.text();
 
     const schedulePlaceholder = $("#schedule-placeholder");
     const scheduleTableContainer = $("#schedule-table-container");
@@ -22,8 +23,40 @@ $(document).ready(function () {
     viewModeSelect.on("change", handleViewModeChange);
     instituteSelect.on("change", handleInstituteChange);
     loadScheduleBtn.on("click", handleLoadSchedule);
+
     teacherSearch.on("input", function () {
         $(this).removeData("staffId");
+    });
+
+    $(document).on("click", ".teacher-link", function (event) {
+        event.preventDefault();
+
+        const staffId = $(this).data("staffId");
+        const teacherName = $(this).data("teacherName");
+        const week = weekSelect.val();
+
+        viewModeSelect.val("teacher");
+        handleViewModeChange();
+
+        teacherSearch.val(teacherName);
+        teacherSearch.data("staffId", staffId);
+
+        loadTeacherSchedule(staffId, teacherName, week);
+    });
+
+    $(document).on("click", ".group-link", function (event) {
+        event.preventDefault();
+
+        const groupId = $(this).data("groupId");
+        const groupName = $(this).data("groupName");
+        const week = weekSelect.val();
+
+        viewModeSelect.val("group");
+        handleViewModeChange();
+
+        groupSelect.html(`<option value="${groupId}" selected>${groupName}</option>`);
+
+        loadGroupSchedule(groupId, groupName, week);
     });
 
     function init() {
@@ -41,11 +74,16 @@ $(document).ready(function () {
             instituteGroup.removeClass("hidden");
             groupField.removeClass("hidden");
             teacherField.addClass("hidden");
+
+            teacherSearch.val("");
+            teacherSearch.removeData("staffId");
+
             selectedEntityText.text("Режим просмотра: по группе");
         } else {
             instituteGroup.addClass("hidden");
             groupField.addClass("hidden");
             teacherField.removeClass("hidden");
+
             selectedEntityText.text("Режим просмотра: по преподавателю");
         }
     }
@@ -95,6 +133,7 @@ $(document).ready(function () {
 
         resetGroupSelect("Сначала выберите институт");
         clearSchedule();
+        selectedEntityText.text("Пока ничего не выбрано");
 
         if (!instituteId) {
             return;
@@ -167,9 +206,11 @@ $(document).ready(function () {
 
         loadTeacherSchedule(staffId, teacherName, week);
     }
+
     function loadGroupSchedule(groupId, groupName, week) {
+        setLoadingState(true);
         selectedEntityText.text(`Загрузка расписания группы ${groupName}...`);
-        showPlaceholder("Загрузка расписания...");
+        showPlaceholder("Загрузка расписания...", "loading");
 
         $.getJSON(`/api/schedule/group/${groupId}`, { week: week })
             .done(function (response) {
@@ -188,13 +229,17 @@ $(document).ready(function () {
                 }
 
                 selectedEntityText.text(`Группа: ${groupName}. Учебная неделя: ${week}`);
-                showPlaceholder(errorText);
+                showPlaceholder(errorText, "error");
+            })
+            .always(function () {
+                setLoadingState(false);
             });
     }
 
     function loadTeacherSchedule(staffId, teacherName, week) {
+        setLoadingState(true);
         selectedEntityText.text(`Загрузка расписания преподавателя ${teacherName}...`);
-        showPlaceholder("Загрузка расписания преподавателя...");
+        showPlaceholder("Загрузка расписания преподавателя...", "loading");
 
         $.getJSON(`/api/schedule/teacher/${staffId}`, { week: week })
             .done(function (response) {
@@ -211,7 +256,10 @@ $(document).ready(function () {
                 }
 
                 selectedEntityText.text(`Преподаватель: ${teacherName}. Учебная неделя: ${week}`);
-                showPlaceholder(errorText);
+                showPlaceholder(errorText, "error");
+            })
+            .always(function () {
+                setLoadingState(false);
             });
     }
 
@@ -221,30 +269,11 @@ $(document).ready(function () {
         selectedEntityText.text(`Группа: ${groupName}. Учебная неделя: ${selectedWeek}`);
 
         if (!response.rows || !response.rows.length) {
-            showPlaceholder(response.message || "Для выбранной недели занятий нет");
+            showPlaceholder(response.message || "Для выбранной недели занятий нет", "empty");
             return;
         }
 
-        if (response.headers && response.headers.length === 6) {
-            dayHeaders.each(function (index) {
-                $(this).text(response.headers[index]);
-            });
-        }
-        scheduleBody.empty();
-
-        response.rows.forEach(function (row) {
-            let trHtml = `<tr><td class="time-cell">${escapeHtml(row.time)}</td>`;
-
-            row.days.forEach(function (cellHtml) {
-                trHtml += `<td class="schedule-cell">${cellHtml || "—"}</td>`;
-            });
-
-            trHtml += "</tr>";
-            scheduleBody.append(trHtml);
-        });
-
-        schedulePlaceholder.addClass("hidden");
-        scheduleTableContainer.removeClass("hidden");
+        renderScheduleTable(response);
     }
 
     function renderTeacherSchedule(response, teacherName, week) {
@@ -253,7 +282,7 @@ $(document).ready(function () {
         selectedEntityText.text(`Преподаватель: ${teacherName}. Учебная неделя: ${selectedWeek}`);
 
         if (!response.rows || !response.rows.length) {
-            showPlaceholder(response.message || "Для выбранной недели занятий нет");
+            showPlaceholder(response.message || "Для выбранной недели занятий нет", "empty");
             return;
         }
 
@@ -280,7 +309,10 @@ $(document).ready(function () {
             scheduleBody.append(trHtml);
         });
 
-        schedulePlaceholder.addClass("hidden");
+        schedulePlaceholder
+            .removeClass("placeholder-loading placeholder-error placeholder-empty")
+            .addClass("hidden");
+
         scheduleTableContainer.removeClass("hidden");
     }
 
@@ -288,14 +320,36 @@ $(document).ready(function () {
         scheduleBody.empty();
         scheduleTableContainer.addClass("hidden");
         schedulePlaceholder.removeClass("hidden");
-        schedulePlaceholder.text("Здесь будет отображаться расписание");
+        schedulePlaceholder
+            .removeClass("placeholder-loading placeholder-error placeholder-empty")
+            .text("Здесь будет отображаться расписание");
     }
 
-    function showPlaceholder(text) {
+    function showPlaceholder(text, type = "default") {
         scheduleBody.empty();
         scheduleTableContainer.addClass("hidden");
         schedulePlaceholder.removeClass("hidden");
-        schedulePlaceholder.text(text);
+        schedulePlaceholder
+            .removeClass("placeholder-loading placeholder-error placeholder-empty")
+            .text(text);
+
+        if (type === "loading") {
+            schedulePlaceholder.addClass("placeholder-loading");
+        } else if (type === "error") {
+            schedulePlaceholder.addClass("placeholder-error");
+        } else if (type === "empty") {
+            schedulePlaceholder.addClass("placeholder-empty");
+        }
+    }
+
+    function setLoadingState(isLoading) {
+        loadScheduleBtn.prop("disabled", isLoading);
+
+        if (isLoading) {
+            loadScheduleBtn.text("Загрузка...");
+        } else {
+            loadScheduleBtn.text(defaultLoadButtonText);
+        }
     }
 
     function escapeHtml(value) {
@@ -306,35 +360,4 @@ $(document).ready(function () {
             .replaceAll('"', "&quot;")
             .replaceAll("'", "&#039;");
     }
-
-    $(document).on("click", ".teacher-link", function (event) {
-        event.preventDefault();
-
-        const staffId = $(this).data("staffId");
-        const teacherName = $(this).data("teacherName");
-        const week = weekSelect.val();
-
-        viewModeSelect.val("teacher");
-        handleViewModeChange();
-
-        teacherSearch.val(teacherName);
-        teacherSearch.data("staffId", staffId);
-
-        loadTeacherSchedule(staffId, teacherName, week);
-    });
-
-    $(document).on("click", ".group-link", function (event) {
-        event.preventDefault();
-
-        const groupId = $(this).data("groupId");
-        const groupName = $(this).data("groupName");
-        const week = weekSelect.val();
-
-        viewModeSelect.val("group");
-        handleViewModeChange();
-
-        groupSelect.html(`<option value="${groupId}" selected>${groupName}</option>`);
-
-        loadGroupSchedule(groupId, groupName, week);
-    });
 });
